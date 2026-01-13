@@ -136,7 +136,7 @@ btnFrame.Size = UDim2.new(1,-24,0,80)
 btnFrame.BackgroundTransparency = 1
 
 local topRow = Instance.new("Frame", btnFrame)
-topRow.Size = UDim2.new(1,0,0,34)
+topRow.Size = UDim2.new(1,0,0,32)
 topRow.BackgroundTransparency = 1
 
 local topLayout = Instance.new("UIListLayout", topRow)
@@ -167,6 +167,9 @@ end
 
 local viewBtn = makeButton(topRow, "View", 0.5)
 local tpBtn   = makeButton(topRow, "Teleport", 0.5)
+
+viewBtn.Size = UDim2.new(0.5, -4, 0, 32)
+tpBtn.Size   = UDim2.new(0.5, -4, 0, 32)
 local espBtn  = makeButton(bottomRow, "ESP: OFF", 1)
 
 --====================================================
