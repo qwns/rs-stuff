@@ -287,17 +287,31 @@ end)
 --====================================================
 
 function RS_ADMIN.Unload()
+    -- allow reload
     getgenv().__RS_ADMIN_LOADED = nil
 
+    -- clear esp
     clearESP()
 
+    -- restore camera safely
+    pcall(function()
+        Camera.CameraSubject = LP.Character:FindFirstChildOfClass("Humanoid")
+        Camera.CameraType = Enum.CameraType.Custom
+    end)
+
+    -- disconnect events
     for _, c in ipairs(connections) do
         pcall(function() c:Disconnect() end)
     end
 
+    -- destroy UI
     pcall(function()
         gui:Destroy()
     end)
+
+    -- remove namespace
+    getgenv().RS_ADMIN = nil
+end
 
     getgenv().RS_ADMIN = nil
 end
