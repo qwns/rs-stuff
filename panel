@@ -257,6 +257,87 @@ local function Slider(text, min, max, val, cb)
     end))
 end
 
+local function clearESP()
+    for _, objs in pairs(ESP.Objects) do
+        for _, o in ipairs(objs) do
+            if typeof(o) == "RBXScriptConnection" then
+                o:Disconnect()
+            elseif o then
+                o:Destroy()
+            end
+        end
+    end
+    table.clear(ESP.Objects)
+end
+
+local function clearPlayerESP(plr)
+    local objs = ESP.Objects[plr]
+    if objs then
+        for _, o in ipairs(objs) do
+            if typeof(o) == "RBXScriptConnection" then
+                o:Disconnect()
+            elseif o then
+                o:Destroy()
+            end
+        end
+        ESP.Objects[plr] = nil
+    end
+end
+
+function createESP(plr)
+    if not ESP.Enabled or plr == LP then return end
+    local char = plr.Character
+    if not char then return end
+
+    local head = char:FindFirstChild("Head")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not head or not hrp then return end
+
+    local hl = Instance.new("Highlight", char)
+    hl.FillTransparency = 1
+    hl.OutlineTransparency = 0
+
+    local bb = Instance.new("BillboardGui", head)
+    bb.Size = UDim2.new(0,200,0,40)
+    bb.StudsOffset = Vector3.new(0,2.8,0)
+    bb.AlwaysOnTop = true
+
+    local label = Instance.new("TextLabel", bb)
+    label.Size = UDim2.new(1,0,1,0)
+    label.BackgroundTransparency = 1
+    label.TextStrokeTransparency = 0
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextColor3 = Color3.new(1,1,1)
+
+
+    local conn
+conn = RunService.RenderStepped:Connect(function()
+    if not ESP.Enabled or not char.Parent then return end
+
+    local text = ESP.Names and plr.Name or ""
+    if ESP.Distance then
+        text ..= " [" .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. "m]"
+    end
+    label.Text = text
+end)
+
+track(conn)
+ESP.Objects[plr] = {hl, bb, conn}
+
+function refreshESP()
+    clearESP()
+    if not ESP.Enabled then return end
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP then
+            createESP(plr)
+        end
+    end
+end
+
+
+
 ------------------------------------------------------------
 -- CONTENT (UNCHANGED)
 ------------------------------------------------------------
@@ -327,32 +408,7 @@ end))
 ------------------------------------------------------------
 -- ESP SYSTEM (UNCHANGED)
 ------------------------------------------------------------
-local function clearESP()
-    for _, objs in pairs(ESP.Objects) do
-        for _, o in ipairs(objs) do
-            if typeof(o) == "RBXScriptConnection" then
-                o:Disconnect()
-            elseif o then
-                o:Destroy()
-            end
-        end
-    end
-    table.clear(ESP.Objects)
-end
 
-local function clearPlayerESP(plr)
-    local objs = ESP.Objects[plr]
-    if objs then
-        for _, o in ipairs(objs) do
-            if typeof(o) == "RBXScriptConnection" then
-                o:Disconnect()
-            elseif o then
-                o:Destroy()
-            end
-        end
-        ESP.Objects[plr] = nil
-    end
-end
 
 track(Players.PlayerAdded:Connect(function(plr)
     if plr == LP then return end
@@ -370,59 +426,7 @@ track(Players.PlayerRemoving:Connect(function(plr)
     clearPlayerESP(plr)
 end))
 
-function refreshESP()
-    clearESP()
-    if not ESP.Enabled then return end
 
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP then
-            createESP(plr)
-        end
-    end
-end
-
-function createESP(plr)
-    if not ESP.Enabled or plr == LP then return end
-    local char = plr.Character
-    if not char then return end
-
-    local head = char:FindFirstChild("Head")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not head or not hrp then return end
-
-    local hl = Instance.new("Highlight", char)
-    hl.FillTransparency = 1
-    hl.OutlineTransparency = 0
-
-    local bb = Instance.new("BillboardGui", head)
-    bb.Size = UDim2.new(0,200,0,40)
-    bb.StudsOffset = Vector3.new(0,2.8,0)
-    bb.AlwaysOnTop = true
-
-    local label = Instance.new("TextLabel", bb)
-    label.Size = UDim2.new(1,0,1,0)
-    label.BackgroundTransparency = 1
-    label.TextStrokeTransparency = 0
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 14
-    label.TextColor3 = Color3.new(1,1,1)
-
-
-    local conn
-conn = RunService.RenderStepped:Connect(function()
-    if not ESP.Enabled or not char.Parent then return end
-
-    local text = ESP.Names and plr.Name or ""
-    if ESP.Distance then
-        text ..= " [" .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. "m]"
-    end
-    label.Text = text
-end)
-
-track(conn)
-
-ESP.Objects[plr] = {hl, bb, conn}
-end
 
 ------------------------------------------------------------
 -- UNLOAD FUNCTION (THE FIX)
