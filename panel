@@ -64,7 +64,7 @@ _G.__RS_MAIN_UNLOAD = _G.__RS_MAIN_UNLOAD or Instance.new("BindableEvent")
 _G.__RS_MAIN_UNLOAD.Name = "__RS_MAIN_UNLOAD"
 _G.__RS_MAIN_UNLOAD.Parent = game:GetService("CoreGui")
 
-_G.__RS_MAIN_UNLOAD.Event:Connect(function()
+track(_G.__RS_MAIN_UNLOAD.Event:Connect(function()
     if _G.RsMainUnload then
         _G.RsMainUnload()
     end
@@ -330,17 +330,54 @@ end))
 local function clearESP()
     for _, objs in pairs(ESP.Objects) do
         for _, o in ipairs(objs) do
-            if o then o:Destroy() end
+            if typeof(o) == "RBXScriptConnection" then
+                o:Disconnect()
+            elseif o then
+                o:Destroy()
+            end
         end
     end
     table.clear(ESP.Objects)
 end
 
+local function clearPlayerESP(plr)
+    local objs = ESP.Objects[plr]
+    if objs then
+        for _, o in ipairs(objs) do
+            if typeof(o) == "RBXScriptConnection" then
+                o:Disconnect()
+            elseif o then
+                o:Destroy()
+            end
+        end
+        ESP.Objects[plr] = nil
+    end
+end
+
+track(Players.PlayerAdded:Connect(function(plr)
+    if plr == LP then return end
+
+
+    track(plr.CharacterAdded:Connect(function()
+        if not ESP.Enabled then return end
+        clearPlayerESP(plr)
+        task.wait(0.2)
+        createESP(plr)
+    end))
+end))
+
+track(Players.PlayerRemoving:Connect(function(plr)
+    clearPlayerESP(plr)
+end))
+
 function refreshESP()
     clearESP()
     if not ESP.Enabled then return end
+
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP then createESP(plr) end
+        if plr ~= LP then
+            createESP(plr)
+        end
     end
 end
 
@@ -371,16 +408,20 @@ function createESP(plr)
     label.TextColor3 = Color3.new(1,1,1)
 
 
-    ESP.Objects[plr] = {hl, bb}
+    local conn
+conn = RunService.RenderStepped:Connect(function()
+    if not ESP.Enabled or not char.Parent then return end
 
-    track(RunService.RenderStepped:Connect(function()
-        if not ESP.Enabled or not char.Parent then return end
-        local text = ESP.Names and plr.Name or ""
-        if ESP.Distance then
-            text ..= " [" .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. "m]"
-        end
-        label.Text = text
-    end))
+    local text = ESP.Names and plr.Name or ""
+    if ESP.Distance then
+        text ..= " [" .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. "m]"
+    end
+    label.Text = text
+end)
+
+track(conn)
+
+ESP.Objects[plr] = {hl, bb, conn}
 end
 
 ------------------------------------------------------------
