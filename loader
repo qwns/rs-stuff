@@ -36,7 +36,7 @@ gui.ResetOnSpawn = false
 
 local main = Instance.new("Frame", gui)
 main.Size = UDim2.fromOffset(340,270)
-main.Position = UDim2.new(0.5, -170, 0, 0)
+main.Position = UDim2.new(0.5, -170, 0, 5)
 main.BackgroundColor3 = Color3.fromRGB(12,12,12)
 main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0,16)
