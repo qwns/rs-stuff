@@ -1,5 +1,4 @@
-
--- r's admin panel (Player View + Teleport)
+-- r's admin panel (View + Teleport + Selected ESP)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -21,6 +20,8 @@ end)
 -- state
 local selectedPlayer = nil
 local viewingPlayer = nil
+local espEnabled = false
+local espHighlight = nil
 
 -- gui
 local gui = Instance.new("ScreenGui", CoreGui)
@@ -28,7 +29,7 @@ gui.Name = "RsPanel"
 gui.ResetOnSpawn = false
 
 local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0,260,0,160)
+main.Size = UDim2.new(0,260,0,190)
 main.Position = UDim2.new(0.05,0,0.3,0)
 main.BackgroundColor3 = Color3.fromRGB(15,15,15)
 main.Active = true
@@ -53,7 +54,6 @@ local search = Instance.new("TextBox", main)
 search.Position = UDim2.new(0,12,0,40)
 search.Size = UDim2.new(1,-24,0,28)
 search.PlaceholderText = "Search"
-search.Text = ""
 search.Font = FONT
 search.TextSize = 14
 search.TextColor3 = BLUE
@@ -73,59 +73,81 @@ selectedLabel.TextColor3 = BLUE
 selectedLabel.BackgroundTransparency = 1
 selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- buttons frame
+-- buttons container
 local btnFrame = Instance.new("Frame", main)
 btnFrame.Position = UDim2.new(0,12,0,96)
-btnFrame.Size = UDim2.new(1,-24,0,36)
+btnFrame.Size = UDim2.new(1,-24,0,80)
 btnFrame.BackgroundTransparency = 1
 
-local layout = Instance.new("UIListLayout", btnFrame)
-layout.FillDirection = Enum.FillDirection.Horizontal
-layout.Padding = UDim.new(0,8)
+-- top row
+local topRow = Instance.new("Frame", btnFrame)
+topRow.Size = UDim2.new(1,0,0,32)
+topRow.BackgroundTransparency = 1
 
--- view button
-local viewBtn = Instance.new("TextButton", btnFrame)
-viewBtn.Size = UDim2.new(0.5,-4,1,0)
-viewBtn.Text = "View"
-viewBtn.Font = FONT
-viewBtn.TextSize = 14
-viewBtn.TextColor3 = BLUE
-viewBtn.BackgroundColor3 = Color3.fromRGB(35,35,35)
-viewBtn.BorderSizePixel = 0
-Instance.new("UICorner", viewBtn)
+local topLayout = Instance.new("UIListLayout", topRow)
+topLayout.FillDirection = Enum.FillDirection.Horizontal
+topLayout.Padding = UDim.new(0,8)
 
--- teleport button
-local tpBtn = Instance.new("TextButton", btnFrame)
-tpBtn.Size = UDim2.new(0.5,-4,1,0)
-tpBtn.Text = "Teleport"
-tpBtn.Font = FONT
-tpBtn.TextSize = 14
-tpBtn.TextColor3 = BLUE
-tpBtn.BackgroundColor3 = Color3.fromRGB(35,35,35)
-tpBtn.BorderSizePixel = 0
-Instance.new("UICorner", tpBtn)
+-- bottom row
+local bottomRow = Instance.new("Frame", btnFrame)
+bottomRow.Position = UDim2.new(0,0,0,44)
+bottomRow.Size = UDim2.new(1,0,0,32)
+bottomRow.BackgroundTransparency = 1
 
--- player selection
+-- button creator
+local function makeButton(parent, text, widthScale)
+    local b = Instance.new("TextButton", parent)
+    b.Size = UDim2.new(widthScale,0,1,0)
+    b.Text = text
+    b.Font = FONT
+    b.TextSize = 14
+    b.TextColor3 = BLUE
+    b.BackgroundColor3 = Color3.fromRGB(35,35,35)
+    b.BorderSizePixel = 0
+    Instance.new("UICorner", b)
+    return b
+end
+
+-- buttons
+local viewBtn = makeButton(topRow, "View", 0.5)
+local tpBtn = makeButton(topRow, "Teleport", 0.5)
+local espBtn = makeButton(bottomRow, "ESP: OFF", 1)
+
+-- ESP helpers
+local function clearESP()
+    if espHighlight then
+        espHighlight:Destroy()
+        espHighlight = nil
+    end
+end
+
+local function applyESP()
+    clearESP()
+    if not espEnabled or not selectedPlayer then return end
+    if not selectedPlayer.Character then return end
+
+    espHighlight = Instance.new("Highlight")
+    espHighlight.FillTransparency = 1
+    espHighlight.OutlineTransparency = 0
+    espHighlight.OutlineColor = BLUE
+    espHighlight.Parent = selectedPlayer.Character
+end
+
+-- player search
 local function findPlayer(name)
     name = name:lower()
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name:lower():sub(1, #name) == name then
+        if plr ~= LP and plr.Name:lower():sub(1, #name) == name then
             return plr
         end
     end
 end
 
 search:GetPropertyChangedSignal("Text"):Connect(function()
-    local text = search.Text
-    local plr = findPlayer(text)
-
-    if plr and plr ~= LP then
-        selectedPlayer = plr
-        selectedLabel.Text = "Selected: " .. plr.Name
-    else
-        selectedPlayer = nil
-        selectedLabel.Text = "Selected: None"
-    end
+    local plr = findPlayer(search.Text)
+    selectedPlayer = plr
+    selectedLabel.Text = plr and ("Selected: " .. plr.Name) or "Selected: None"
+    applyESP()
 end)
 
 -- view toggle
@@ -133,61 +155,44 @@ viewBtn.MouseButton1Click:Connect(function()
     if not selectedPlayer then return end
 
     if viewingPlayer == selectedPlayer then
-        -- stop viewing
         viewingPlayer = nil
         viewBtn.Text = "View"
-
-        if LP.Character then
-            local hum = LP.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                Camera.CameraSubject = hum
-                Camera.CameraType = Enum.CameraType.Custom
-            end
-        end
+        Camera.CameraSubject = LP.Character:FindFirstChildOfClass("Humanoid")
     else
-        -- start viewing
         viewingPlayer = selectedPlayer
         viewBtn.Text = "Viewing"
-
-        if selectedPlayer.Character then
-            local hum = selectedPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                Camera.CameraSubject = hum
-                Camera.CameraType = Enum.CameraType.Custom
-            end
-        end
+        Camera.CameraSubject = selectedPlayer.Character:FindFirstChildOfClass("Humanoid")
     end
+
+    Camera.CameraType = Enum.CameraType.Custom
 end)
 
--- teleport on top
+-- teleport
 tpBtn.MouseButton1Click:Connect(function()
     if not selectedPlayer then return end
 
-    -- stop viewing if active
     viewingPlayer = nil
     viewBtn.Text = "View"
+    Camera.CameraSubject = LP.Character:FindFirstChildOfClass("Humanoid")
 
-    if LP.Character then
-        local hum = LP.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            Camera.CameraSubject = hum
-            Camera.CameraType = Enum.CameraType.Custom
-        end
+    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    local thrp = selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    if hrp and thrp then
+        hrp.CFrame = thrp.CFrame * CFrame.new(0,5,0)
     end
+end)
 
-    if LP.Character and selectedPlayer.Character then
-        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
-        local thrp = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-
-        if hrp and thrp then
-            hrp.CFrame = thrp.CFrame * CFrame.new(0, 5, 0)
-        end
-    end
+-- ESP toggle
+espBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    espBtn.Text = espEnabled and "ESP: ON" or "ESP: OFF"
+    applyESP()
 end)
 
 -- UI toggle
 local uiOpen = true
-UserInputService.InputBegan:Connect(function(i, gp)
+UserInputService.InputBegan:Connect(function(i,gp)
     if gp then return end
     if i.KeyCode == Enum.KeyCode.RightControl then
         uiOpen = not uiOpen
