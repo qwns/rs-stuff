@@ -1,3 +1,4 @@
+print("RS MAIN PANEL EXECUTED")
 -- RELOAD PROTECTION
 if _G.RsMainLoaded then return end
 _G.RsMainLoaded = true
