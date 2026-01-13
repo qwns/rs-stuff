@@ -303,6 +303,7 @@ function RS_ADMIN.Unload()
     for _, c in ipairs(connections) do
         pcall(function() c:Disconnect() end)
     end
+    table.clear(connections)
 
     -- destroy UI
     pcall(function()
@@ -313,5 +314,3 @@ function RS_ADMIN.Unload()
     getgenv().RS_ADMIN = nil
 end
 
-    getgenv().RS_ADMIN = nil
-end
