@@ -64,7 +64,7 @@ _G.__RS_MAIN_UNLOAD = _G.__RS_MAIN_UNLOAD or Instance.new("BindableEvent")
 _G.__RS_MAIN_UNLOAD.Name = "__RS_MAIN_UNLOAD"
 _G.__RS_MAIN_UNLOAD.Parent = game:GetService("CoreGui")
 
-track(_G.__RS_MAIN_UNLOAD.Event:Connect(function()
+_G.__RS_MAIN_UNLOAD.Event:Connect(function()
     if _G.RsMainUnload then
         _G.RsMainUnload()
     end
