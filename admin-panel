@@ -57,6 +57,8 @@ gui.Name = "RsAdminPanel"
 gui.ResetOnSpawn = false
 
 _G.__RS_ADMIN_UNLOAD = _G.__RS_ADMIN_UNLOAD or Instance.new("BindableEvent")
+_G.__RS_ADMIN_UNLOAD.Name = "__RS_ADMIN_UNLOAD"
+_G.__RS_ADMIN_UNLOAD.Parent = game:GetService("CoreGui")
 
 _G.__RS_ADMIN_UNLOAD.Event:Connect(function()
     if _G.RsAdminUnload then
