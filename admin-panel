@@ -174,10 +174,15 @@ local espBtn  = makeButton(bottomRow, "ESP: OFF", 1)
 --====================================================
 
 local function clearESP()
-    if espHighlight then
-        espHighlight:Destroy()
-        espHighlight = nil
+    if not selectedPlayer or not selectedPlayer.Character then return end
+
+    for _, v in ipairs(selectedPlayer.Character:GetChildren()) do
+        if v:IsA("Highlight") then
+            v:Destroy()
+        end
     end
+
+    espHighlight = nil
 end
 
 local function applyESP()
@@ -188,7 +193,8 @@ local function applyESP()
     espHighlight = Instance.new("Highlight")
     espHighlight.FillTransparency = 1
     espHighlight.OutlineTransparency = 0
-    espHighlight.OutlineColor = Color3.new(1, 1, 1)
+    espHighlight.OutlineColor = Color3.new(1, 1, 1) -- WHITE
+    espHighlight.FillColor    = Color3.new(1, 1, 1) -- ALSO WHITE
     espHighlight.Parent = selectedPlayer.Character
 end
 
