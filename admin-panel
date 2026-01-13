@@ -136,7 +136,7 @@ btnFrame.Size = UDim2.new(1,-24,0,80)
 btnFrame.BackgroundTransparency = 1
 
 local topRow = Instance.new("Frame", btnFrame)
-topRow.Size = UDim2.new(1,0,0,32)
+topRow.Size = UDim2.new(1,0,0,34)
 topRow.BackgroundTransparency = 1
 
 local topLayout = Instance.new("UIListLayout", topRow)
@@ -154,7 +154,7 @@ bottomRow.BackgroundTransparency = 1
 
 local function makeButton(parent, text, width)
     local b = Instance.new("TextButton", parent)
-    b.Size = UDim2.new(width,0,1,0)
+    b.Size = UDim2.new(width,0,0,32)
     b.Text = text
     b.Font = FONT
     b.TextSize = 14
