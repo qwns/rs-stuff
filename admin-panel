@@ -57,7 +57,7 @@ gui.Name = "RsAdminPanel"
 gui.ResetOnSpawn = false
 
 --====================================================
--- LOADER UNLOAD HOOK (PUT HERE)
+-- LOADER UNLOAD HOOK (CORRECT)
 --====================================================
 
 if not _G.__RS_ADMIN_UNLOAD then
@@ -67,14 +67,16 @@ if not _G.__RS_ADMIN_UNLOAD then
     _G.__RS_ADMIN_UNLOAD = ev
 end
 
-if not _G.__RS_ADMIN_UNLOAD_CONN then
-    _G.__RS_ADMIN_UNLOAD_CONN =
-        _G.__RS_ADMIN_UNLOAD.Event:Connect(function()
-            if RS_ADMIN and RS_ADMIN.Unload then
-                RS_ADMIN.Unload()
-            end
-        end)
-end
+-- create a NEW connection every load
+local unloadConn
+unloadConn = _G.__RS_ADMIN_UNLOAD.Event:Connect(function()
+    if RS_ADMIN and RS_ADMIN.Unload then
+        RS_ADMIN.Unload()
+    end
+end)
+
+-- track it for cleanup
+
 
 local main = Instance.new("Frame", gui)
 main.Size = UDim2.fromOffset(260,190)
@@ -287,30 +289,41 @@ end)
 --====================================================
 
 function RS_ADMIN.Unload()
+    if RS_ADMIN.__UNLOADING then return end
+    RS_ADMIN.__UNLOADING = true
+
     -- allow reload
     getgenv().__RS_ADMIN_LOADED = nil
 
     -- clear esp
     clearESP()
 
-    -- restore camera safely
+    -- restore camera
     pcall(function()
         Camera.CameraSubject = LP.Character:FindFirstChildOfClass("Humanoid")
         Camera.CameraType = Enum.CameraType.Custom
     end)
 
-    -- disconnect events
+    -- disconnect regular connections
     for _, c in ipairs(connections) do
         pcall(function() c:Disconnect() end)
     end
     table.clear(connections)
+
+    -- disconnect unload LAST (important)
+    pcall(function()
+        if unloadConn then
+            unloadConn:Disconnect()
+            unloadConn = nil
+        end
+    end)
 
     -- destroy UI
     pcall(function()
         gui:Destroy()
     end)
 
-    -- remove namespace
+    -- cleanup
+    RS_ADMIN.__UNLOADING = nil
     getgenv().RS_ADMIN = nil
 end
-
