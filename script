@@ -1,0 +1,397 @@
+-- SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local Camera = workspace.CurrentCamera
+
+local LP = Players.LocalPlayer
+
+------------------------------------------------------------
+-- CONSTANTS
+------------------------------------------------------------
+local BLUE = Color3.fromRGB(39,142,245)
+local FONT = Enum.Font.GothamSemibold
+
+------------------------------------------------------------
+-- CLEANUP
+------------------------------------------------------------
+pcall(function()
+    CoreGui:FindFirstChild("RsPanel"):Destroy()
+end)
+
+------------------------------------------------------------
+-- STATE
+------------------------------------------------------------
+local Movement = {
+    Enabled = false,
+    Speed = 30,
+    Keybind = nil
+}
+
+local ESP = {
+    Enabled = false,
+    Names = false,
+    Distance = false,
+    Objects = {}
+}
+
+local awaitingBind = false
+local uiOpen = true
+
+------------------------------------------------------------
+-- GUI
+------------------------------------------------------------
+local gui = Instance.new("ScreenGui", CoreGui)
+gui.Name = "RsPanel"
+gui.ResetOnSpawn = false
+
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 280, 0, 520)
+main.Position = UDim2.new(0.05, 0, 0.28, 0)
+main.BackgroundColor3 = Color3.fromRGB(15,15,15)
+main.Active = true
+main.Draggable = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,16)
+
+local canvas = Instance.new("CanvasGroup", main)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1,0,0,30)
+title.Position = UDim2.new(0,0,0,8)
+title.Text = "r's panel"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.TextColor3 = BLUE
+title.BackgroundTransparency = 1
+title.TextXAlignment = Enum.TextXAlignment.Center
+
+------------------------------------------------------------
+-- UI TOGGLE
+------------------------------------------------------------
+local function toggleUI()
+    uiOpen = not uiOpen
+    main.Visible = true
+    TweenService:Create(canvas, TweenInfo.new(0.25), {
+        GroupTransparency = uiOpen and 0 or 1
+    }):Play()
+    task.delay(0.25, function()
+        if not uiOpen then main.Visible = false end
+    end)
+end
+
+------------------------------------------------------------
+-- SCROLL
+------------------------------------------------------------
+local scroll = Instance.new("ScrollingFrame", main)
+scroll.Position = UDim2.new(0,8,0,42)
+scroll.Size = UDim2.new(1,-16,1,-50)
+scroll.BackgroundTransparency = 1
+scroll.ScrollBarThickness = 0
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local layout = Instance.new("UIListLayout", scroll)
+layout.Padding = UDim.new(0,10)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+------------------------------------------------------------
+-- ORDER SYSTEM
+------------------------------------------------------------
+local order = 0
+local function nextOrder()
+    order += 1
+    return order
+end
+
+------------------------------------------------------------
+-- UI HELPERS
+------------------------------------------------------------
+local function Section(text)
+    local l = Instance.new("TextLabel", scroll)
+    l.LayoutOrder = nextOrder()
+    l.Size = UDim2.new(1,0,0,24)
+    l.Text = text
+    l.Font = FONT
+    l.TextSize = 14
+    l.TextColor3 = BLUE
+    l.BackgroundTransparency = 1
+    l.TextXAlignment = Enum.TextXAlignment.Center
+end
+
+local function Button(text, cb)
+    local b = Instance.new("TextButton", scroll)
+    b.LayoutOrder = nextOrder()
+    b.Size = UDim2.new(1,0,0,32)
+    b.BackgroundColor3 = Color3.fromRGB(35,35,35)
+    b.Text = text
+    b.Font = FONT
+    b.TextSize = 14
+    b.TextColor3 = BLUE
+    b.BorderSizePixel = 0
+    Instance.new("UICorner", b)
+    b.MouseButton1Click:Connect(function()
+        cb(b)
+    end)
+    return b
+end
+
+------------------------------------------------------------
+-- RUN SPEED ROW
+------------------------------------------------------------
+local function RunSpeedRow()
+    local frame = Instance.new("Frame", scroll)
+    frame.LayoutOrder = nextOrder()
+    frame.Size = UDim2.new(1,0,0,32)
+    frame.BackgroundTransparency = 1
+
+    local toggle = Instance.new("TextButton", frame)
+    toggle.Size = UDim2.new(0.7,0,1,0)
+    toggle.BackgroundColor3 = Color3.fromRGB(35,35,35)
+    toggle.Font = FONT
+    toggle.TextSize = 14
+    toggle.TextColor3 = BLUE
+    toggle.BorderSizePixel = 0
+    Instance.new("UICorner", toggle)
+
+    local key = Instance.new("TextButton", frame)
+    key.Position = UDim2.new(0.72,0,0,0)
+    key.Size = UDim2.new(0.28,0,1,0)
+    key.BackgroundColor3 = Color3.fromRGB(55,55,55)
+    key.Font = FONT
+    key.TextSize = 14
+    key.TextColor3 = BLUE
+    key.BorderSizePixel = 0
+    Instance.new("UICorner", key)
+
+    local function refresh()
+        toggle.Text = "Run Speed: " .. (Movement.Enabled and "ON" or "OFF")
+        key.Text = Movement.Keybind and "[" .. Movement.Keybind.Name .. "]" or "..."
+    end
+
+    toggle.MouseButton1Click:Connect(function()
+        Movement.Enabled = not Movement.Enabled
+        refresh()
+    end)
+
+    key.MouseButton1Click:Connect(function()
+        awaitingBind = true
+        key.Text = "..."
+    end)
+
+    refresh()
+    return refresh
+end
+
+------------------------------------------------------------
+-- SLIDER
+------------------------------------------------------------
+local function Slider(text, min, max, val, cb)
+    local frame = Instance.new("Frame", scroll)
+    frame.LayoutOrder = nextOrder()
+    frame.Size = UDim2.new(1,0,0,44)
+    frame.BackgroundTransparency = 1
+
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1,0,0,18)
+    label.Text = text .. ": " .. val
+    label.Font = FONT
+    label.TextSize = 13
+    label.TextColor3 = BLUE
+    label.BackgroundTransparency = 1
+
+    local bar = Instance.new("Frame", frame)
+    bar.Position = UDim2.new(0,0,0,24)
+    bar.Size = UDim2.new(1,0,0,10)
+    bar.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Instance.new("UICorner", bar)
+
+    local fill = Instance.new("Frame", bar)
+    fill.BackgroundColor3 = BLUE
+    Instance.new("UICorner", fill)
+
+    local function set(v)
+        fill.Size = UDim2.new((v-min)/(max-min),0,1,0)
+        label.Text = text .. ": " .. v
+        cb(v)
+    end
+
+    set(val)
+
+    local dragging = false
+    bar.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
+    end)
+    bar.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local pct = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+            set(math.floor(min + (max - min) * pct))
+        end
+    end)
+end
+
+------------------------------------------------------------
+-- CONTENT
+------------------------------------------------------------
+Section("Server")
+Button("Rejoin Server", function()
+    TeleportService:Teleport(game.PlaceId, LP)
+end)
+
+Button("Server Hop", function()
+    local data = HttpService:JSONDecode(
+        game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?limit=100")
+    )
+    for _, s in ipairs(data.data) do
+        if s.playing < s.maxPlayers and s.id ~= game.JobId then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, LP)
+            break
+        end
+    end
+end)
+
+Section("Movement")
+local refreshRun = RunSpeedRow()
+Slider("Speed", 16, 500, Movement.Speed, function(v)
+    Movement.Speed = v
+end)
+
+Section("ESP")
+local espBtn = Button("ESP: OFF", function(b)
+    ESP.Enabled = not ESP.Enabled
+    b.Text = "ESP: " .. (ESP.Enabled and "ON" or "OFF")
+    refreshESP()
+end)
+
+local nameBtn = Button("Names: OFF", function(b)
+    ESP.Names = not ESP.Names
+    b.Text = "Names: " .. (ESP.Names and "ON" or "OFF")
+end)
+
+local distBtn = Button("Distance: OFF", function(b)
+    ESP.Distance = not ESP.Distance
+    b.Text = "Distance: " .. (ESP.Distance and "ON" or "OFF")
+end)
+
+------------------------------------------------------------
+-- INPUT
+------------------------------------------------------------
+UserInputService.InputBegan:Connect(function(i,gp)
+    if gp then return end
+
+    if i.KeyCode == Enum.KeyCode.RightControl then
+        toggleUI()
+    end
+
+    if awaitingBind and i.UserInputType == Enum.UserInputType.Keyboard then
+        Movement.Keybind = i.KeyCode
+        awaitingBind = false
+        refreshRun()
+        return
+    end
+
+    if Movement.Keybind and i.KeyCode == Movement.Keybind then
+        Movement.Enabled = not Movement.Enabled
+        refreshRun()
+    end
+end)
+
+------------------------------------------------------------
+-- RUN SPEED
+------------------------------------------------------------
+RunService.RenderStepped:Connect(function()
+    local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if h then
+        h.WalkSpeed = Movement.Enabled and Movement.Speed or 16
+    end
+end)
+
+------------------------------------------------------------
+-- ESP SYSTEM (FINAL FIX)
+------------------------------------------------------------
+local function clearESP()
+    for _, objs in pairs(ESP.Objects) do
+        for _, o in ipairs(objs) do
+            if o then o:Destroy() end
+        end
+    end
+    table.clear(ESP.Objects)
+end
+
+function refreshESP()
+    clearESP()
+    if not ESP.Enabled then return end
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP then
+            createESP(plr)
+        end
+    end
+end
+
+function createESP(plr)
+    if not ESP.Enabled then return end
+    if plr == LP then return end
+
+    local char = plr.Character
+    if not char then return end
+
+    local head = char:FindFirstChild("Head")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not head or not hrp then return end
+
+    local hl = Instance.new("Highlight")
+    hl.FillTransparency = 1
+    hl.OutlineTransparency = 0
+    hl.OutlineColor = Color3.new(1,1,1)
+    hl.Parent = char
+
+    local bb = Instance.new("BillboardGui")
+    bb.Size = UDim2.new(0,200,0,40)
+    bb.StudsOffset = Vector3.new(0,2.8,0)
+    bb.AlwaysOnTop = true
+    bb.Parent = head
+
+    local label = Instance.new("TextLabel", bb)
+    label.Size = UDim2.new(1,0,1,0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.new(1,1,1)
+    label.TextStrokeTransparency = 0
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+
+    ESP.Objects[plr] = {hl, bb}
+
+    RunService.RenderStepped:Connect(function()
+        if not ESP.Enabled or not char.Parent then return end
+        local text = ""
+        if ESP.Names then text = plr.Name end
+        if ESP.Distance then
+            local d = (Camera.CFrame.Position - hrp.Position).Magnitude
+            text ..= string.format(" [%dm]", math.floor(d))
+        end
+        label.Text = text
+    end)
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        refreshESP()
+    end)
+end)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr ~= LP then
+        plr.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            refreshESP()
+        end)
+    end
+end
