@@ -21,6 +21,15 @@ local Camera = workspace.CurrentCamera
 
 local LP = Players.LocalPlayer
 
+-- UNLOAD HOOK (DO NOT TOUCH UI)
+_G.__RS_UNLOAD = _G.__RS_UNLOAD or Instance.new("BindableEvent")
+
+_G.__RS_UNLOAD.Event:Connect(function()
+    if gui then
+        gui:Destroy()
+    end
+end)
+
 ------------------------------------------------------------
 -- CONSTANTS
 ------------------------------------------------------------
