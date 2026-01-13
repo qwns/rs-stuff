@@ -188,7 +188,7 @@ local function applyESP()
     espHighlight = Instance.new("Highlight")
     espHighlight.FillTransparency = 1
     espHighlight.OutlineTransparency = 0
-    espHighlight.OutlineColor = BLUE
+    espHighlight.OutlineColor = Color3.new(1, 1, 1)
     espHighlight.Parent = selectedPlayer.Character
 end
 
