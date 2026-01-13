@@ -60,9 +60,9 @@ local gui = Instance.new("ScreenGui", CoreGui)
 gui.Name = "RsPanel"
 gui.ResetOnSpawn = false
 
-_G.__RS_UNLOAD = _G.__RS_UNLOAD or Instance.new("BindableEvent")
+_G.__RS_MAIN_UNLOAD = _G.__RS_MAIN_UNLOAD or Instance.new("BindableEvent")
 
-_G.__RS_UNLOAD.Event:Connect(function()
+_G.__RS_MAIN_UNLOAD.Event:Connect(function()
     if _G.RsMainUnload then
         _G.RsMainUnload()
     end
