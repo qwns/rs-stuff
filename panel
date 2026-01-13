@@ -413,7 +413,6 @@ end))
 track(Players.PlayerAdded:Connect(function(plr)
     if plr == LP then return end
 
-
     track(plr.CharacterAdded:Connect(function()
         if not ESP.Enabled then return end
         clearPlayerESP(plr)
