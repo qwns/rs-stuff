@@ -56,13 +56,20 @@ local gui = Instance.new("ScreenGui", CoreGui)
 gui.Name = "RsAdminPanel"
 gui.ResetOnSpawn = false
 
-_G.__RS_ADMIN_UNLOAD = _G.__RS_ADMIN_UNLOAD or Instance.new("BindableEvent")
-_G.__RS_ADMIN_UNLOAD.Name = "__RS_ADMIN_UNLOAD"
-_G.__RS_ADMIN_UNLOAD.Parent = game:GetService("CoreGui")
+--====================================================
+-- LOADER UNLOAD HOOK (PUT HERE)
+--====================================================
+
+if not _G.__RS_ADMIN_UNLOAD then
+    local ev = Instance.new("BindableEvent")
+    ev.Name = "__RS_ADMIN_UNLOAD"
+    ev.Parent = CoreGui
+    _G.__RS_ADMIN_UNLOAD = ev
+end
 
 _G.__RS_ADMIN_UNLOAD.Event:Connect(function()
-    if _G.RsAdminUnload then
-        _G.RsAdminUnload()
+    if RS_ADMIN and RS_ADMIN.Unload then
+        RS_ADMIN.Unload()
     end
 end)
 
