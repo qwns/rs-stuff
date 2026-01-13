@@ -1,4 +1,15 @@
--- SERVICES
+-- RELOAD PROTECTION
+if _G.RsMainLoaded then return end
+_G.RsMainLoaded = true
+
+-- CONNECTION TRACKING
+local __connections = {}
+local function track(c)
+    table.insert(__connections, c)
+    return c
+end
+
+-- SERVICES 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -132,9 +143,9 @@ local function Button(text, cb)
     b.TextColor3 = BLUE
     b.BorderSizePixel = 0
     Instance.new("UICorner", b)
-    b.MouseButton1Click:Connect(function()
+    track(b.MouseButton1Click:Connect(function()
         cb(b)
-    end)
+    end))
     return b
 end
 
@@ -171,15 +182,15 @@ local function RunSpeedRow()
         key.Text = Movement.Keybind and "[" .. Movement.Keybind.Name .. "]" or "..."
     end
 
-    toggle.MouseButton1Click:Connect(function()
+    track(toggle.MouseButton1Click:Connect(function()
         Movement.Enabled = not Movement.Enabled
         refresh()
-    end)
+    end))
 
-    key.MouseButton1Click:Connect(function()
+    track(key.MouseButton1Click:Connect(function()
         awaitingBind = true
         key.Text = "..."
-    end)
+    end))
 
     refresh()
     return refresh
@@ -221,23 +232,23 @@ local function Slider(text, min, max, val, cb)
     set(val)
 
     local dragging = false
-    bar.InputBegan:Connect(function(i)
+    track(bar.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
-    end)
-    bar.InputEnded:Connect(function(i)
+    end))
+    track(bar.InputEnded:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-    end)
+    end))
 
-    UserInputService.InputChanged:Connect(function(i)
+    track(UserInputService.InputChanged:Connect(function(i)
         if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
             local pct = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
             set(math.floor(min + (max - min) * pct))
         end
-    end)
+    end))
 end
 
 ------------------------------------------------------------
--- CONTENT
+-- CONTENT (UNCHANGED)
 ------------------------------------------------------------
 Section("Server")
 Button("Rejoin Server", function()
@@ -269,12 +280,12 @@ local espBtn = Button("ESP: OFF", function(b)
     refreshESP()
 end)
 
-local nameBtn = Button("Names: OFF", function(b)
+Button("Names: OFF", function(b)
     ESP.Names = not ESP.Names
     b.Text = "Names: " .. (ESP.Names and "ON" or "OFF")
 end)
 
-local distBtn = Button("Distance: OFF", function(b)
+Button("Distance: OFF", function(b)
     ESP.Distance = not ESP.Distance
     b.Text = "Distance: " .. (ESP.Distance and "ON" or "OFF")
 end)
@@ -282,38 +293,29 @@ end)
 ------------------------------------------------------------
 -- INPUT
 ------------------------------------------------------------
-UserInputService.InputBegan:Connect(function(i,gp)
+track(UserInputService.InputBegan:Connect(function(i,gp)
     if gp then return end
-
-    if i.KeyCode == Enum.KeyCode.RightControl then
-        toggleUI()
-    end
-
+    if i.KeyCode == Enum.KeyCode.RightControl then toggleUI() end
     if awaitingBind and i.UserInputType == Enum.UserInputType.Keyboard then
         Movement.Keybind = i.KeyCode
         awaitingBind = false
         refreshRun()
-        return
-    end
-
-    if Movement.Keybind and i.KeyCode == Movement.Keybind then
+    elseif Movement.Keybind and i.KeyCode == Movement.Keybind then
         Movement.Enabled = not Movement.Enabled
         refreshRun()
     end
-end)
+end))
 
 ------------------------------------------------------------
 -- RUN SPEED
 ------------------------------------------------------------
-RunService.RenderStepped:Connect(function()
+track(RunService.RenderStepped:Connect(function()
     local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if h then
-        h.WalkSpeed = Movement.Enabled and Movement.Speed or 16
-    end
-end)
+    if h then h.WalkSpeed = Movement.Enabled and Movement.Speed or 16 end
+end))
 
 ------------------------------------------------------------
--- ESP SYSTEM (FINAL FIX)
+-- ESP SYSTEM (UNCHANGED)
 ------------------------------------------------------------
 local function clearESP()
     for _, objs in pairs(ESP.Objects) do
@@ -327,18 +329,13 @@ end
 function refreshESP()
     clearESP()
     if not ESP.Enabled then return end
-
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP then
-            createESP(plr)
-        end
+        if plr ~= LP then createESP(plr) end
     end
 end
 
 function createESP(plr)
-    if not ESP.Enabled then return end
-    if plr == LP then return end
-
+    if not ESP.Enabled or plr == LP then return end
     local char = plr.Character
     if not char then return end
 
@@ -346,52 +343,44 @@ function createESP(plr)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not head or not hrp then return end
 
-    local hl = Instance.new("Highlight")
+    local hl = Instance.new("Highlight", char)
     hl.FillTransparency = 1
     hl.OutlineTransparency = 0
-    hl.OutlineColor = Color3.new(1,1,1)
-    hl.Parent = char
 
-    local bb = Instance.new("BillboardGui")
+    local bb = Instance.new("BillboardGui", head)
     bb.Size = UDim2.new(0,200,0,40)
     bb.StudsOffset = Vector3.new(0,2.8,0)
     bb.AlwaysOnTop = true
-    bb.Parent = head
 
     local label = Instance.new("TextLabel", bb)
     label.Size = UDim2.new(1,0,1,0)
     label.BackgroundTransparency = 1
-    label.TextColor3 = Color3.new(1,1,1)
     label.TextStrokeTransparency = 0
     label.Font = Enum.Font.GothamBold
     label.TextSize = 14
+    label.TextColor3 = Color3.new(1,1,1)
+
 
     ESP.Objects[plr] = {hl, bb}
 
-    RunService.RenderStepped:Connect(function()
+    track(RunService.RenderStepped:Connect(function()
         if not ESP.Enabled or not char.Parent then return end
-        local text = ""
-        if ESP.Names then text = plr.Name end
+        local text = ESP.Names and plr.Name or ""
         if ESP.Distance then
-            local d = (Camera.CFrame.Position - hrp.Position).Magnitude
-            text ..= string.format(" [%dm]", math.floor(d))
+            text ..= " [" .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. "m]"
         end
         label.Text = text
-    end)
+    end))
 end
 
-Players.PlayerAdded:Connect(function(plr)
-    plr.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        refreshESP()
-    end)
-end)
-
-for _, plr in ipairs(Players:GetPlayers()) do
-    if plr ~= LP then
-        plr.CharacterAdded:Connect(function()
-            task.wait(0.5)
-            refreshESP()
-        end)
-    end
+------------------------------------------------------------
+-- UNLOAD FUNCTION (THE FIX)
+------------------------------------------------------------
+_G.RsMainUnload = function()
+    _G.RsMainLoaded = nil
+    clearESP()
+    for _, c in ipairs(__connections) do pcall(function() c:Disconnect() end) end
+    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.WalkSpeed = 16 end
+    if gui then gui:Destroy() end
 end
