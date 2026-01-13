@@ -67,11 +67,14 @@ if not _G.__RS_ADMIN_UNLOAD then
     _G.__RS_ADMIN_UNLOAD = ev
 end
 
-_G.__RS_ADMIN_UNLOAD.Event:Connect(function()
-    if RS_ADMIN and RS_ADMIN.Unload then
-        RS_ADMIN.Unload()
-    end
-end)
+if not _G.__RS_ADMIN_UNLOAD_CONN then
+    _G.__RS_ADMIN_UNLOAD_CONN =
+        _G.__RS_ADMIN_UNLOAD.Event:Connect(function()
+            if RS_ADMIN and RS_ADMIN.Unload then
+                RS_ADMIN.Unload()
+            end
+        end)
+end
 
 local main = Instance.new("Frame", gui)
 main.Size = UDim2.fromOffset(260,190)
