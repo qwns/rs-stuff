@@ -1,35 +1,22 @@
-------------------------------------------------------------
--- EARLY CLEANUP
-------------------------------------------------------------
-local CoreGui = game:GetService("CoreGui")
-pcall(function()
-    CoreGui:FindFirstChild("RsPanel"):Destroy()
-end)
-
-------------------------------------------------------------
--- RELOAD PROTECTION (MUST BE FIRST)
-------------------------------------------------------------
+-- RELOAD PROTECTION
 if _G.RsMainLoaded then return end
 _G.RsMainLoaded = true
 
-------------------------------------------------------------
 -- CONNECTION TRACKING
-------------------------------------------------------------
 local __connections = {}
 local function track(c)
     table.insert(__connections, c)
     return c
 end
 
-------------------------------------------------------------
--- SERVICES
-------------------------------------------------------------
+-- SERVICES 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
 local Camera = workspace.CurrentCamera
 
 local LP = Players.LocalPlayer
@@ -39,6 +26,13 @@ local LP = Players.LocalPlayer
 ------------------------------------------------------------
 local BLUE = Color3.fromRGB(39,142,245)
 local FONT = Enum.Font.GothamSemibold
+
+------------------------------------------------------------
+-- CLEANUP
+------------------------------------------------------------
+pcall(function()
+    CoreGui:FindFirstChild("RsPanel"):Destroy()
+end)
 
 ------------------------------------------------------------
 -- STATE
@@ -60,27 +54,22 @@ local awaitingBind = false
 local uiOpen = true
 
 ------------------------------------------------------------
--- GUI (CREATED ONCE)
+-- GUI
 ------------------------------------------------------------
-local gui = Instance.new("ScreenGui")
+local gui = Instance.new("ScreenGui", CoreGui)
 gui.Name = "RsPanel"
 gui.ResetOnSpawn = false
-gui.Parent = CoreGui
 
-------------------------------------------------------------
--- UNLOAD BINDABLE (SAFE RESET)
-------------------------------------------------------------
-if _G.__RS_MAIN_UNLOAD then
-    _G.__RS_MAIN_UNLOAD:Destroy()
-end
-
-_G.__RS_MAIN_UNLOAD = Instance.new("BindableEvent")
+_G.__RS_MAIN_UNLOAD = _G.__RS_MAIN_UNLOAD or Instance.new("BindableEvent")
 _G.__RS_MAIN_UNLOAD.Name = "__RS_MAIN_UNLOAD"
-_G.__RS_MAIN_UNLOAD.Parent = CoreGui
+_G.__RS_MAIN_UNLOAD.Parent = game:GetService("CoreGui")
 
-------------------------------------------------------------
--- MAIN FRAME
-------------------------------------------------------------
+_G.__RS_MAIN_UNLOAD.Event:Connect(function()
+    if _G.RsMainUnload then
+        _G.RsMainUnload()
+    end
+end)
+
 local main = Instance.new("Frame", gui)
 main.Size = UDim2.new(0, 280, 0, 520)
 main.Position = UDim2.new(0.05, 0, 0.28, 0)
@@ -127,6 +116,7 @@ scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
 local layout = Instance.new("UIListLayout", scroll)
 layout.Padding = UDim.new(0,10)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
 
 ------------------------------------------------------------
 -- ORDER SYSTEM
@@ -138,7 +128,7 @@ local function nextOrder()
 end
 
 ------------------------------------------------------------
--- UI HELPERS (UNCHANGED)
+-- UI HELPERS
 ------------------------------------------------------------
 local function Section(text)
     local l = Instance.new("TextLabel", scroll)
@@ -170,7 +160,7 @@ local function Button(text, cb)
 end
 
 ------------------------------------------------------------
--- RUN SPEED ROW (UNCHANGED)
+-- RUN SPEED ROW
 ------------------------------------------------------------
 local function RunSpeedRow()
     local frame = Instance.new("Frame", scroll)
@@ -217,60 +207,54 @@ local function RunSpeedRow()
 end
 
 ------------------------------------------------------------
--- ESP HELPERS (WHITE TEXT FIXED)
+-- SLIDER
 ------------------------------------------------------------
-local function clearESP()
-    for _, objs in pairs(ESP.Objects) do
-        for _, o in ipairs(objs) do
-            if typeof(o) == "RBXScriptConnection" then
-                o:Disconnect()
-            elseif o then
-                o:Destroy()
-            end
-        end
-    end
-    table.clear(ESP.Objects)
-end
+local function Slider(text, min, max, val, cb)
+    local frame = Instance.new("Frame", scroll)
+    frame.LayoutOrder = nextOrder()
+    frame.Size = UDim2.new(1,0,0,44)
+    frame.BackgroundTransparency = 1
 
-local function createESP(plr)
-    if not ESP.Enabled or plr == LP then return end
-    local char = plr.Character
-    if not char then return end
-
-    local head = char:FindFirstChild("Head")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not head or not hrp then return end
-
-    local hl = Instance.new("Highlight", char)
-    hl.FillTransparency = 1
-    hl.OutlineTransparency = 0
-    hl.OutlineColor = Color3.new(1,1,1)
-
-    local bb = Instance.new("BillboardGui", head)
-    bb.Size = UDim2.new(0,200,0,40)
-    bb.StudsOffset = Vector3.new(0,2.8,0)
-    bb.AlwaysOnTop = true
-
-    local label = Instance.new("TextLabel", bb)
-    label.Size = UDim2.new(1,0,1,0)
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1,0,0,18)
+    label.Text = text .. ": " .. val
+    label.Font = FONT
+    label.TextSize = 13
+    label.TextColor3 = BLUE
     label.BackgroundTransparency = 1
-    label.TextStrokeTransparency = 0
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 14
-    label.TextColor3 = Color3.new(1,1,1)
 
-    local conn
-    conn = RunService.RenderStepped:Connect(function()
-        if not ESP.Enabled or not char.Parent then return end
-        local text = ESP.Names and plr.Name or ""
-        if ESP.Distance then
-            text ..= " [" .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. "m]"
+    local bar = Instance.new("Frame", frame)
+    bar.Position = UDim2.new(0,0,0,24)
+    bar.Size = UDim2.new(1,0,0,10)
+    bar.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Instance.new("UICorner", bar)
+
+    local fill = Instance.new("Frame", bar)
+    fill.BackgroundColor3 = BLUE
+    Instance.new("UICorner", fill)
+
+    local function set(v)
+        fill.Size = UDim2.new((v-min)/(max-min),0,1,0)
+        label.Text = text .. ": " .. v
+        cb(v)
+    end
+
+    set(val)
+
+    local dragging = false
+    track(bar.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
+    end))
+    track(bar.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end))
+
+    track(UserInputService.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local pct = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+            set(math.floor(min + (max - min) * pct))
         end
-        label.Text = text
-    end)
-
-    track(conn)
-    ESP.Objects[plr] = {hl, bb, conn}
+    end))
 end
 
 ------------------------------------------------------------
@@ -281,8 +265,40 @@ Button("Rejoin Server", function()
     TeleportService:Teleport(game.PlaceId, LP)
 end)
 
+Button("Server Hop", function()
+    local data = HttpService:JSONDecode(
+        game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?limit=100")
+    )
+    for _, s in ipairs(data.data) do
+        if s.playing < s.maxPlayers and s.id ~= game.JobId then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, LP)
+            break
+        end
+    end
+end)
+
 Section("Movement")
 local refreshRun = RunSpeedRow()
+Slider("Speed", 16, 500, Movement.Speed, function(v)
+    Movement.Speed = v
+end)
+
+Section("ESP")
+local espBtn = Button("ESP: OFF", function(b)
+    ESP.Enabled = not ESP.Enabled
+    b.Text = "ESP: " .. (ESP.Enabled and "ON" or "OFF")
+    refreshESP()
+end)
+
+Button("Names: OFF", function(b)
+    ESP.Names = not ESP.Names
+    b.Text = "Names: " .. (ESP.Names and "ON" or "OFF")
+end)
+
+Button("Distance: OFF", function(b)
+    ESP.Distance = not ESP.Distance
+    b.Text = "Distance: " .. (ESP.Distance and "ON" or "OFF")
+end)
 
 ------------------------------------------------------------
 -- INPUT
@@ -301,33 +317,80 @@ track(UserInputService.InputBegan:Connect(function(i,gp)
 end))
 
 ------------------------------------------------------------
--- UNLOAD FUNCTION (FINAL – FIXED FOREVER)
+-- RUN SPEED
 ------------------------------------------------------------
-_G.RsMainUnload = function()
-    _G.RsMainLoaded = nil
+track(RunService.RenderStepped:Connect(function()
+    local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if h then h.WalkSpeed = Movement.Enabled and Movement.Speed or 16 end
+end))
 
+------------------------------------------------------------
+-- ESP SYSTEM (UNCHANGED)
+------------------------------------------------------------
+local function clearESP()
+    for _, objs in pairs(ESP.Objects) do
+        for _, o in ipairs(objs) do
+            if o then o:Destroy() end
+        end
+    end
+    table.clear(ESP.Objects)
+end
+
+function refreshESP()
     clearESP()
-
-    for _, c in ipairs(__connections) do
-        pcall(function() c:Disconnect() end)
-    end
-    table.clear(__connections)
-
-    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum then hum.WalkSpeed = 16 end
-
-    if _G.__RS_MAIN_UNLOAD then
-        _G.__RS_MAIN_UNLOAD:Destroy()
-        _G.__RS_MAIN_UNLOAD = nil
-    end
-
-    if gui then
-        gui:Destroy()
+    if not ESP.Enabled then return end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP then createESP(plr) end
     end
 end
 
-track(_G.__RS_MAIN_UNLOAD.Event:Connect(function()
-    if _G.RsMainUnload then
-        _G.RsMainUnload()
-    end
-end))
+function createESP(plr)
+    if not ESP.Enabled or plr == LP then return end
+    local char = plr.Character
+    if not char then return end
+
+    local head = char:FindFirstChild("Head")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not head or not hrp then return end
+
+    local hl = Instance.new("Highlight", char)
+    hl.FillTransparency = 1
+    hl.OutlineTransparency = 0
+
+    local bb = Instance.new("BillboardGui", head)
+    bb.Size = UDim2.new(0,200,0,40)
+    bb.StudsOffset = Vector3.new(0,2.8,0)
+    bb.AlwaysOnTop = true
+
+    local label = Instance.new("TextLabel", bb)
+    label.Size = UDim2.new(1,0,1,0)
+    label.BackgroundTransparency = 1
+    label.TextStrokeTransparency = 0
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextColor3 = Color3.new(1,1,1)
+
+
+    ESP.Objects[plr] = {hl, bb}
+
+    track(RunService.RenderStepped:Connect(function()
+        if not ESP.Enabled or not char.Parent then return end
+        local text = ESP.Names and plr.Name or ""
+        if ESP.Distance then
+            text ..= " [" .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. "m]"
+        end
+        label.Text = text
+    end))
+end
+
+------------------------------------------------------------
+-- UNLOAD FUNCTION (THE FIX)
+------------------------------------------------------------
+_G.RsMainUnload = function()
+    _G.RsMainLoaded = nil
+    clearESP()
+    for _, c in ipairs(__connections) do pcall(function() c:Disconnect() end) end
+    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.WalkSpeed = 16 end
+    if gui then gui:Destroy() end
+end
