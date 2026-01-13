@@ -1,4 +1,19 @@
--- r's admin panel (View + Teleport + Selected ESP)
+--====================================================
+-- r's admin panel (PATCHED FOR LOADER)
+-- View + Teleport + Selected ESP
+--====================================================
+
+-- reload protection
+if getgenv().__RS_ADMIN_LOADED then return end
+getgenv().__RS_ADMIN_LOADED = true
+
+-- namespace
+local RS_ADMIN = {}
+getgenv().RS_ADMIN = RS_ADMIN
+
+--====================================================
+-- SERVICES
+--====================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -8,40 +23,56 @@ local CoreGui = game:GetService("CoreGui")
 local LP = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- constants
+--====================================================
+-- CONSTANTS
+--====================================================
+
 local BLUE = Color3.fromRGB(39,142,245)
 local FONT = Enum.Font.GothamSemibold
 
--- cleanup
+--====================================================
+-- CLEANUP OLD INSTANCE
+--====================================================
+
 pcall(function()
-    CoreGui:FindFirstChild("RsPanel"):Destroy()
+    CoreGui:FindFirstChild("RsAdminPanel"):Destroy()
 end)
 
--- state
+--====================================================
+-- STATE
+--====================================================
+
 local selectedPlayer = nil
 local viewingPlayer = nil
 local espEnabled = false
 local espHighlight = nil
+local connections = {}
 
--- gui
+--====================================================
+-- GUI
+--====================================================
+
 local gui = Instance.new("ScreenGui", CoreGui)
-gui.Name = "RsPanel"
+gui.Name = "RsAdminPanel"
 gui.ResetOnSpawn = false
 
 local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0,260,0,190)
-main.Position = UDim2.new(0.05,0,0.3,0)
+main.Size = UDim2.fromOffset(260,190)
+main.Position = UDim2.fromScale(0.05,0.3)
 main.BackgroundColor3 = Color3.fromRGB(15,15,15)
-main.Active = true
-main.Draggable = true
+main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0,16)
 
-local canvas = Instance.new("CanvasGroup", main)
+--====================================================
+-- HEADER (DRAG ONLY HERE)
+--====================================================
 
--- title
-local title = Instance.new("TextLabel", main)
-title.Size = UDim2.new(1,0,0,28)
-title.Position = UDim2.new(0,0,0,6)
+local header = Instance.new("Frame", main)
+header.Size = UDim2.new(1,0,0,32)
+header.BackgroundTransparency = 1
+
+local title = Instance.new("TextLabel", header)
+title.Size = UDim2.new(1,0,1,0)
 title.Text = "r's admin panel"
 title.Font = Enum.Font.GothamBold
 title.TextSize = 16
@@ -49,9 +80,14 @@ title.TextColor3 = BLUE
 title.BackgroundTransparency = 1
 title.TextXAlignment = Enum.TextXAlignment.Center
 
--- search box
+--====================================================
+-- CONTENT
+--====================================================
+
+local canvas = Instance.new("CanvasGroup", main)
+
 local search = Instance.new("TextBox", main)
-search.Position = UDim2.new(0,12,0,40)
+search.Position = UDim2.fromOffset(12,40)
 search.Size = UDim2.new(1,-24,0,28)
 search.PlaceholderText = "Search"
 search.Font = FONT
@@ -62,9 +98,8 @@ search.BackgroundColor3 = Color3.fromRGB(30,30,30)
 search.BorderSizePixel = 0
 Instance.new("UICorner", search)
 
--- selected label
 local selectedLabel = Instance.new("TextLabel", main)
-selectedLabel.Position = UDim2.new(0,12,0,74)
+selectedLabel.Position = UDim2.fromOffset(12,74)
 selectedLabel.Size = UDim2.new(1,-24,0,18)
 selectedLabel.Text = "Selected: None"
 selectedLabel.Font = FONT
@@ -73,13 +108,11 @@ selectedLabel.TextColor3 = BLUE
 selectedLabel.BackgroundTransparency = 1
 selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- buttons container
 local btnFrame = Instance.new("Frame", main)
-btnFrame.Position = UDim2.new(0,12,0,96)
+btnFrame.Position = UDim2.fromOffset(12,96)
 btnFrame.Size = UDim2.new(1,-24,0,80)
 btnFrame.BackgroundTransparency = 1
 
--- top row
 local topRow = Instance.new("Frame", btnFrame)
 topRow.Size = UDim2.new(1,0,0,32)
 topRow.BackgroundTransparency = 1
@@ -88,16 +121,18 @@ local topLayout = Instance.new("UIListLayout", topRow)
 topLayout.FillDirection = Enum.FillDirection.Horizontal
 topLayout.Padding = UDim.new(0,8)
 
--- bottom row
 local bottomRow = Instance.new("Frame", btnFrame)
-bottomRow.Position = UDim2.new(0,0,0,44)
+bottomRow.Position = UDim2.fromOffset(0,44)
 bottomRow.Size = UDim2.new(1,0,0,32)
 bottomRow.BackgroundTransparency = 1
 
--- button creator
-local function makeButton(parent, text, widthScale)
+--====================================================
+-- BUTTON FACTORY
+--====================================================
+
+local function makeButton(parent, text, width)
     local b = Instance.new("TextButton", parent)
-    b.Size = UDim2.new(widthScale,0,1,0)
+    b.Size = UDim2.new(width,0,1,0)
     b.Text = text
     b.Font = FONT
     b.TextSize = 14
@@ -108,12 +143,14 @@ local function makeButton(parent, text, widthScale)
     return b
 end
 
--- buttons
 local viewBtn = makeButton(topRow, "View", 0.5)
-local tpBtn = makeButton(topRow, "Teleport", 0.5)
-local espBtn = makeButton(bottomRow, "ESP: OFF", 1)
+local tpBtn   = makeButton(topRow, "Teleport", 0.5)
+local espBtn  = makeButton(bottomRow, "ESP: OFF", 1)
 
--- ESP helpers
+--====================================================
+-- ESP
+--====================================================
+
 local function clearESP()
     if espHighlight then
         espHighlight:Destroy()
@@ -133,24 +170,32 @@ local function applyESP()
     espHighlight.Parent = selectedPlayer.Character
 end
 
--- player search
+--====================================================
+-- PLAYER SEARCH
+--====================================================
+
 local function findPlayer(name)
     name = name:lower()
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP and plr.Name:lower():sub(1, #name) == name then
+        if plr ~= LP and plr.Name:lower():sub(1,#name) == name then
             return plr
         end
     end
 end
 
+connections[#connections+1] =
 search:GetPropertyChangedSignal("Text"):Connect(function()
-    local plr = findPlayer(search.Text)
-    selectedPlayer = plr
-    selectedLabel.Text = plr and ("Selected: " .. plr.Name) or "Selected: None"
+    selectedPlayer = findPlayer(search.Text)
+    selectedLabel.Text = selectedPlayer
+        and ("Selected: " .. selectedPlayer.Name)
+        or "Selected: None"
     applyESP()
 end)
 
--- view toggle
+--====================================================
+-- BUTTON LOGIC
+--====================================================
+
 viewBtn.MouseButton1Click:Connect(function()
     if not selectedPlayer then return end
 
@@ -167,7 +212,6 @@ viewBtn.MouseButton1Click:Connect(function()
     Camera.CameraType = Enum.CameraType.Custom
 end)
 
--- teleport
 tpBtn.MouseButton1Click:Connect(function()
     if not selectedPlayer then return end
 
@@ -183,25 +227,57 @@ tpBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ESP toggle
 espBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
     espBtn.Text = espEnabled and "ESP: ON" or "ESP: OFF"
     applyESP()
 end)
 
--- UI toggle
-local uiOpen = true
-UserInputService.InputBegan:Connect(function(i,gp)
-    if gp then return end
-    if i.KeyCode == Enum.KeyCode.RightControl then
-        uiOpen = not uiOpen
-        main.Visible = true
-        TweenService:Create(canvas, TweenInfo.new(0.2), {
-            GroupTransparency = uiOpen and 0 or 1
-        }):Play()
-        task.delay(0.2, function()
-            if not uiOpen then main.Visible = false end
+--====================================================
+-- HEADER-ONLY DRAG
+--====================================================
+
+local dragging, dragStart, startPos
+
+header.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = i.Position
+        startPos = main.Position
+        i.Changed:Connect(function()
+            if i.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
         end)
     end
 end)
+
+header.InputChanged:Connect(function(i)
+    if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = i.Position - dragStart
+        main.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+--====================================================
+-- UNLOAD (CALLED BY LOADER)
+--====================================================
+
+function RS_ADMIN.Unload()
+    getgenv().__RS_ADMIN_LOADED = nil
+
+    clearESP()
+
+    for _, c in ipairs(connections) do
+        pcall(function() c:Disconnect() end)
+    end
+
+    pcall(function()
+        gui:Destroy()
+    end)
+
+    getgenv().RS_ADMIN = nil
+end
