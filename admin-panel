@@ -1,39 +1,36 @@
 --====================================================
--- r's admin panel (PATCHED FOR LOADER)
--- View + Teleport + Selected ESP
+-- r's admin panel (FIXED: White Highlight ONLY on Selected + Original Button Colors)
 --====================================================
 
--- reload protection
+-- Reload protection
 if getgenv().__RS_ADMIN_LOADED then return end
 getgenv().__RS_ADMIN_LOADED = true
 
--- namespace
+-- Namespace
 local RS_ADMIN = {}
 getgenv().RS_ADMIN = RS_ADMIN
 
 --====================================================
 -- SERVICES
 --====================================================
-
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
-
+local RunService = game:GetService("RunService")
 local LP = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 --====================================================
 -- CONSTANTS
 --====================================================
-
 local BLUE = Color3.fromRGB(39,142,245)
+local WHITE = Color3.fromRGB(255,255,255)
 local FONT = Enum.Font.GothamSemibold
 
 --====================================================
 -- CLEANUP OLD INSTANCE
 --====================================================
-
 pcall(function()
     CoreGui:FindFirstChild("RsAdminPanel"):Destroy()
 end)
@@ -41,25 +38,21 @@ end)
 --====================================================
 -- STATE
 --====================================================
-
 local selectedPlayer = nil
 local viewingPlayer = nil
 local espEnabled = false
-local espHighlight = nil
+local selectedESP = {}  -- only for selected player (highlight + name/distance)
 local connections = {}
 
 --====================================================
 -- GUI
 --====================================================
-
-local gui = Instance.new("ScreenGui", CoreGui)
+local gui = Instance.new("ScreenGui")
 gui.Name = "RsAdminPanel"
 gui.ResetOnSpawn = false
+gui.Parent = CoreGui
 
---====================================================
--- LOADER UNLOAD HOOK (CORRECT)
---====================================================
-
+-- Unload hook
 if not _G.__RS_ADMIN_UNLOAD then
     local ev = Instance.new("BindableEvent")
     ev.Name = "__RS_ADMIN_UNLOAD"
@@ -67,28 +60,21 @@ if not _G.__RS_ADMIN_UNLOAD then
     _G.__RS_ADMIN_UNLOAD = ev
 end
 
--- create a NEW connection every load
-local unloadConn
-unloadConn = _G.__RS_ADMIN_UNLOAD.Event:Connect(function()
+local unloadConn = _G.__RS_ADMIN_UNLOAD.Event:Connect(function()
     if RS_ADMIN and RS_ADMIN.Unload then
         RS_ADMIN.Unload()
     end
 end)
-
--- track it for cleanup
-
+table.insert(connections, unloadConn)
 
 local main = Instance.new("Frame", gui)
-main.Size = UDim2.fromOffset(260,190)
-main.Position = UDim2.fromScale(0.05,0.3)
+main.Size = UDim2.fromOffset(260, 190)
+main.Position = UDim2.fromScale(0.05, 0.3)
 main.BackgroundColor3 = Color3.fromRGB(15,15,15)
 main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0,16)
 
---====================================================
--- HEADER (DRAG ONLY HERE)
---====================================================
-
+-- Header (drag only here)
 local header = Instance.new("Frame", main)
 header.Size = UDim2.new(1,0,0,32)
 header.BackgroundTransparency = 1
@@ -101,17 +87,13 @@ title.TextSize = 16
 title.TextColor3 = BLUE
 title.BackgroundTransparency = 1
 title.TextXAlignment = Enum.TextXAlignment.Center
+title.Parent = header
 
---====================================================
--- CONTENT
---====================================================
-
-local canvas = Instance.new("CanvasGroup", main)
-
+-- Content
 local search = Instance.new("TextBox", main)
 search.Position = UDim2.fromOffset(12,40)
 search.Size = UDim2.new(1,-24,0,28)
-search.PlaceholderText = "Search"
+search.PlaceholderText = "Search player..."
 search.Font = FONT
 search.TextSize = 14
 search.TextColor3 = BLUE
@@ -148,87 +130,117 @@ bottomRow.Position = UDim2.fromOffset(0,44)
 bottomRow.Size = UDim2.new(1,0,0,32)
 bottomRow.BackgroundTransparency = 1
 
---====================================================
--- BUTTON FACTORY
---====================================================
-
+-- Button factory (original dark color)
 local function makeButton(parent, text, width)
     local b = Instance.new("TextButton", parent)
-    b.Size = UDim2.new(width,0,0,32)
+    b.Size = UDim2.new(width or 0.5, -4, 0, 32)
     b.Text = text
     b.Font = FONT
     b.TextSize = 14
     b.TextColor3 = BLUE
-    b.BackgroundColor3 = Color3.fromRGB(35,35,35)
+    b.BackgroundColor3 = Color3.fromRGB(35,35,35)  -- original color
     b.BorderSizePixel = 0
     Instance.new("UICorner", b)
     return b
 end
 
-local viewBtn = makeButton(topRow, "View", 0.5)
-local tpBtn   = makeButton(topRow, "Teleport", 0.5)
-
-viewBtn.Size = UDim2.new(0.5, -4, 0, 32)
-tpBtn.Size   = UDim2.new(0.5, -4, 0, 32)
-local espBtn  = makeButton(bottomRow, "ESP: OFF", 1)
+local viewBtn = makeButton(topRow, "View")
+local tpBtn = makeButton(topRow, "Teleport")
+local espBtn = makeButton(bottomRow, "ESP: OFF", 1)
 
 --====================================================
--- ESP
+-- ESP FUNCTIONS (White outline + Name/Distance ONLY on selected)
 --====================================================
+local function clearSelectedESP()
+    if selectedESP.highlight then pcall(function() selectedESP.highlight:Destroy() end) end
+    if selectedESP.billboard then pcall(function() selectedESP.billboard:Destroy() end) end
+    if selectedESP.conn then pcall(function() selectedESP.conn:Disconnect() end) end
+    selectedESP = {}
+end
 
-local function clearESP()
-    if not selectedPlayer or not selectedPlayer.Character then return end
+local function applySelectedESP()
+    clearSelectedESP()
 
-    for _, v in ipairs(selectedPlayer.Character:GetChildren()) do
-        if v:IsA("Highlight") then
-            v:Destroy()
+    if not espEnabled or not selectedPlayer or not selectedPlayer.Character then return end
+
+    local char = selectedPlayer.Character
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local head = char:FindFirstChild("Head")
+    if not hrp or not head then return end
+
+    -- White outline on selected player only
+    local highlight = Instance.new("Highlight")
+    highlight.Adornee = char
+    highlight.FillTransparency = 1
+    highlight.OutlineTransparency = 0
+    highlight.OutlineColor = WHITE
+    highlight.Parent = char
+
+    -- Name + Distance billboard
+    local billboard = Instance.new("BillboardGui")
+    billboard.Adornee = head
+    billboard.Size = UDim2.new(0, 200, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 2.8, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = head
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1,0,1,0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.new(1,1,1)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextStrokeTransparency = 0.7
+    label.TextTransparency = 0
+    label.Parent = billboard
+
+    -- Live update distance
+    local conn = RunService.Heartbeat:Connect(function()
+        if not selectedPlayer or not selectedPlayer.Character or not hrp or not hrp.Parent then
+            pcall(function() conn:Disconnect() end)
+            clearSelectedESP()
+            return
         end
-    end
 
-    espHighlight = nil
-end
+        local dist = math.floor((Camera.CFrame.Position - hrp.Position).Magnitude)
+        label.Text = selectedPlayer.Name .. " [" .. dist .. "m]"
+    end)
 
-local function applyESP()
-    clearESP()
-    if not espEnabled or not selectedPlayer then return end
-    if not selectedPlayer.Character then return end
-
-    espHighlight = Instance.new("Highlight")
-    espHighlight.FillTransparency = 1
-    espHighlight.OutlineTransparency = 0
-    espHighlight.OutlineColor = Color3.new(1, 1, 1) -- WHITE
-    espHighlight.FillColor    = Color3.new(1, 1, 1) -- ALSO WHITE
-    espHighlight.Parent = selectedPlayer.Character
+    selectedESP = {
+        highlight = highlight,
+        billboard = billboard,
+        label = label,
+        conn = conn
+    }
 end
 
 --====================================================
--- PLAYER SEARCH
+-- PLAYER SEARCH & SELECTION
 --====================================================
+local function findPlayer(query)
+    if not query or query == "" then return nil end
+    query = query:lower()
 
-local function findPlayer(name)
-    name = name:lower()
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP and plr.Name:lower():sub(1,#name) == name then
+        if plr ~= LP and plr.Name:lower():find(query, 1, true) then
             return plr
         end
     end
 end
 
-connections[#connections+1] =
-search:GetPropertyChangedSignal("Text"):Connect(function()
+connections[#connections+1] = search:GetPropertyChangedSignal("Text"):Connect(function()
     selectedPlayer = findPlayer(search.Text)
-    selectedLabel.Text = selectedPlayer
-        and ("Selected: " .. selectedPlayer.Name)
-        or "Selected: None"
-    applyESP()
+    selectedLabel.Text = selectedPlayer and ("Selected: " .. selectedPlayer.Name) or "Selected: None"
+
+    -- No color change on buttons (original dark color stays)
+    applySelectedESP()  -- update ESP for newly selected player
 end)
 
 --====================================================
 -- BUTTON LOGIC
 --====================================================
-
 viewBtn.MouseButton1Click:Connect(function()
-    if not selectedPlayer then return end
+    if not selectedPlayer or not selectedPlayer.Character then return end
 
     if viewingPlayer == selectedPlayer then
         viewingPlayer = nil
@@ -239,37 +251,29 @@ viewBtn.MouseButton1Click:Connect(function()
         viewBtn.Text = "Viewing"
         Camera.CameraSubject = selectedPlayer.Character:FindFirstChildOfClass("Humanoid")
     end
-
     Camera.CameraType = Enum.CameraType.Custom
 end)
 
 tpBtn.MouseButton1Click:Connect(function()
-    if not selectedPlayer then return end
-
-    viewingPlayer = nil
-    viewBtn.Text = "View"
-    Camera.CameraSubject = LP.Character:FindFirstChildOfClass("Humanoid")
+    if not selectedPlayer or not selectedPlayer.Character then return end
 
     local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    local thrp = selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-
+    local thrp = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
     if hrp and thrp then
-        hrp.CFrame = thrp.CFrame * CFrame.new(0,5,0)
+        hrp.CFrame = thrp.CFrame * CFrame.new(0, 5, 0)
     end
 end)
 
 espBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
     espBtn.Text = espEnabled and "ESP: ON" or "ESP: OFF"
-    applyESP()
+    applySelectedESP()
 end)
 
 --====================================================
--- HEADER-ONLY DRAG
+-- HEADER DRAG
 --====================================================
-
 local dragging, dragStart, startPos
-
 header.InputBegan:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
@@ -294,45 +298,30 @@ header.InputChanged:Connect(function(i)
 end)
 
 --====================================================
--- UNLOAD (CALLED BY LOADER)
+-- UNLOAD FUNCTION
 --====================================================
-
 function RS_ADMIN.Unload()
     if RS_ADMIN.__UNLOADING then return end
     RS_ADMIN.__UNLOADING = true
 
-    -- allow reload
     getgenv().__RS_ADMIN_LOADED = nil
 
-    -- clear esp
-    clearESP()
+    clearSelectedESP()
 
-    -- restore camera
     pcall(function()
         Camera.CameraSubject = LP.Character:FindFirstChildOfClass("Humanoid")
         Camera.CameraType = Enum.CameraType.Custom
     end)
 
-    -- disconnect regular connections
     for _, c in ipairs(connections) do
         pcall(function() c:Disconnect() end)
     end
     table.clear(connections)
 
-    -- disconnect unload LAST (important)
-    pcall(function()
-        if unloadConn then
-            unloadConn:Disconnect()
-            unloadConn = nil
-        end
-    end)
-
-    -- destroy UI
     pcall(function()
         gui:Destroy()
     end)
 
-    -- cleanup
     RS_ADMIN.__UNLOADING = nil
     getgenv().RS_ADMIN = nil
 end
